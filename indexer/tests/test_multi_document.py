@@ -58,9 +58,10 @@ def test_multi_document_build_preserves_metadata_and_deduplicates_manifest_rows(
     second = tmp_path / "south" / "handbook.md"
     first.parent.mkdir()
     second.parent.mkdir()
-    text = "# Attendance\n\nAttendance is required for every course session."
-    first.write_text(text)
-    second.write_text(text)
+    first.write_text("# Attendance\n\nAttendance is required for every course session on the "
+                     "north campus, and the register is signed at the start of the class.")
+    second.write_text("# Attendance\n\nStudents on the south campus must attend most lectures "
+                      "and may be absent only with a medical certificate from the clinic.")
     entries = [
         {"file": "north/handbook.md", "doc_version": "2026", "superseded": False},
         {"file": "south/handbook.md", "doc_version": "2026", "superseded": False},
@@ -84,6 +85,9 @@ def test_multi_document_build_preserves_metadata_and_deduplicates_manifest_rows(
     monkeypatch.setattr("pipeline.store.reuse_embeddings", lambda chunks, _settings: {})
     monkeypatch.setattr("pipeline.embed.embed", fake_embed)
     monkeypatch.setattr("pipeline.store.store", fake_store)
+    # verification embeds whole documents for the near-duplicate check: orthogonal vectors here
+    monkeypatch.setattr("pipeline.verify.default_embedder", lambda _s: (
+        lambda texts: [[1.0, 0.0] if i % 2 == 0 else [0.0, 1.0] for i, _ in enumerate(texts)]))
 
     assert run_pipeline(settings_for(tmp_path)) == 2
     chunks = stored["chunks"]
@@ -95,22 +99,44 @@ def test_multi_document_build_preserves_metadata_and_deduplicates_manifest_rows(
     assert len(embedded) == 2
 
 
-def test_failed_document_aborts_before_embedding_or_store(
+def test_unreadable_document_is_quarantined_and_the_rest_is_indexed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    valid = tmp_path / "valid.md"
-    valid.write_text("# Policy\n\nA valid policy passage with sufficient words.")
+    (tmp_path / "valid.md").write_text(
+        "# Policy\n\nA valid policy passage with sufficient words to count as real content "
+        "for the verification stage, ending properly.")
+    (tmp_path / "broken.pdf").write_bytes(b"this is not a pdf at all")
     (tmp_path / "_index.json").write_text(json.dumps([
         {"file": "valid.md", "doc_version": "2026", "superseded": False},
+        {"file": "broken.pdf", "doc_version": "2026", "superseded": False, "name": "Broken"},
         {"file": "missing.pdf", "doc_version": "2026", "superseded": False},
     ]))
+    stored: dict[str, Any] = {}
     monkeypatch.setattr("pipeline.store.reuse_embeddings", lambda *_args: {})
-    monkeypatch.setattr("pipeline.embed.embed", lambda *_args: pytest.fail("must not embed"))
-    monkeypatch.setattr("pipeline.store.store", lambda *_args: pytest.fail("must not store"))
+    monkeypatch.setattr("pipeline.embed.embed", lambda texts, _s: [[1.0, 0.0] for _ in texts])
+    monkeypatch.setattr("pipeline.store.store",
+                        lambda chunks, _v, _s: stored.setdefault("chunks", chunks) and len(chunks))
 
-    with pytest.raises(RuntimeError, match="missing.pdf"):
+    assert run_pipeline(settings_for(tmp_path)) >= 1
+    assert {c.source for c in stored["chunks"]} == {"valid.md"}
+    out = capsys.readouterr().out
+    assert '"msg": "listed document is missing; skipped"' in out
+    assert not (tmp_path / "broken.pdf").exists()                      # moved out of the corpus
+    quarantined = list((tmp_path / ".ragops" / "quarantine").rglob("broken.pdf"))
+    assert len(quarantined) == 1
+    reports = list((tmp_path / ".ragops" / "reports").glob("verification-*.json"))
+    assert len(reports) == 1
+
+
+def test_nothing_survives_verification_means_no_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "bad.pdf").write_bytes(b"garbage")
+    (tmp_path / "_index.json").write_text(json.dumps(
+        [{"file": "bad.pdf", "doc_version": "2026", "superseded": False}]))
+    monkeypatch.setattr("pipeline.store.store", lambda *_a: pytest.fail("must not store"))
+    with pytest.raises(RuntimeError, match="no document passed verification"):
         run_pipeline(settings_for(tmp_path))
-    assert '"msg": "document failed"' in capsys.readouterr().out
 
 
 def test_matching_model_reuses_only_existing_chunk_vectors(monkeypatch: pytest.MonkeyPatch) -> None:
