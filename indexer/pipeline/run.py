@@ -101,6 +101,8 @@ def run_pipeline(settings: IndexerSettings) -> int:
     from .chunk import chunk, chunk_fixed
     from .clean import clean
     from .embed import embed
+    from .inventory import active_counts
+    from .ledger import render, summarise, totals
     from .store import reuse_embeddings, store
     from .tokens import count
     from .verify import collect_candidates, verify
@@ -180,6 +182,11 @@ def run_pipeline(settings: IndexerSettings) -> int:
         amplification=round(stored_tokens / max(original_tokens, 1), 3),
         chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap)
 
+    try:    # what the served index holds now, to report documents this run removes
+        before = active_counts(settings)
+    except Exception as exc:    # noqa: BLE001 - no Chroma or no index yet: nothing to compare
+        before = {}
+        log("could not read the served index", error=str(exc))
     started = time.perf_counter()
     reused = reuse_embeddings(all_chunks, settings)     # unchanged chunks keep their vectors
     missing = [c for c in all_chunks if c.id not in reused]
@@ -191,9 +198,13 @@ def run_pipeline(settings: IndexerSettings) -> int:
     vectors = [by_id[c.id] for c in all_chunks]
     log("embeddings ready", reused=len(reused), embedded=len(missing),
         seconds=round(time.perf_counter() - started, 2))
+    rows = summarise(all_chunks, set(reused))
     started = time.perf_counter()
     stored = store(all_chunks, vectors, settings)
     log("index stored", chunks=stored, seconds=round(time.perf_counter() - started, 2))
+    removed = {s: n for s, n in before.items() if s not in {r["document"] for r in rows}}
+    log("ingestion summary", per_document=rows, removed=removed, **totals(rows))
+    print(render(rows, removed), flush=True)
     return stored
 
 
