@@ -107,13 +107,17 @@ def test_clean_corpus_passes_every_check(tmp_path: Path) -> None:
 def test_batch_b_planted_problems_are_caught_and_quarantined(tmp_path: Path) -> None:
     md(tmp_path / "attendance.md", BASE, title="Attendance Policy")
     md(tmp_path / "library.md", OTHER, title="Library Rules")
-    md(tmp_path / "attendance-copy.md", BASE, title="Attendance Policy")            # exact duplicate
-    md(tmp_path / "attendance-copy-2.md", BASE, title="Attendance Policy")          # exact duplicate
-    md(tmp_path / "attendance-reworded.md",                                            # near-duplicate
+    # exact duplicates
+    md(tmp_path / "attendance-copy.md", BASE, title="Attendance Policy")
+    md(tmp_path / "attendance-copy-2.md", BASE, title="Attendance Policy")
+    # near-duplicate
+    md(tmp_path / "attendance-reworded.md",
        BASE.replace("eighty", "seventy").replace("weekly", "monthly"), title="Attendance Rules")
-    md(tmp_path / "truncated.md", OTHER[:-60], title="Truncated Policy")             # cut mid-sentence
+    # cut off in the middle of a sentence
+    md(tmp_path / "truncated.md", OTHER[:-60], title="Truncated Policy")
+    # no title and no version
     md(tmp_path / "no-metadata.md", "Plain text without a heading. " + OTHER, version=None,
-       title=None)                                                                  # no title, no version
+       title=None)
     md(tmp_path / "garbled.md", "��\x01\x02 " * 80, title="Garbled")
     md(tmp_path / "empty.md", "", title="Empty")
     md(tmp_path / "injected.md",
@@ -150,7 +154,8 @@ def test_the_first_seen_copy_stays_even_when_a_later_copy_sorts_earlier(tmp_path
 
 
 def test_newer_version_archives_the_older_one_and_keeps_it_flagged(tmp_path: Path) -> None:
-    md(tmp_path / "handbook-2026-06.md", BASE, version="2026-06", title="Student Handbook June 2026")
+    md(tmp_path / "handbook-2026-06.md", BASE, version="2026-06",
+       title="Student Handbook June 2026")
     md(tmp_path / "handbook-2026-11.md", BASE.replace("seven days", "ten days"),
        version="2026-11", title="Student Handbook November 2026")
     result = run(tmp_path)

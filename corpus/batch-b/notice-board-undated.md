@@ -1,0 +1,1 @@
+The cafeteria on the ground floor will be closed for cleaning and repair next Tuesday. Students can buy tea and snacks from the kiosk near the library during that day. Normal service starts again on Wednesday morning at eight o'clock.

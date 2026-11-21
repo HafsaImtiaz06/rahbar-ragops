@@ -101,16 +101,14 @@ def run_pipeline(settings: IndexerSettings) -> int:
     from .chunk import chunk, chunk_fixed
     from .clean import clean
     from .embed import embed
-    from .extract import extract
     from .store import reuse_embeddings, store
     from .tokens import count
-    from .verify import Candidate, load_manifest, verify
+    from .verify import collect_candidates, verify
 
     documents = discover(settings.corpus_dir)
     if not documents:
         raise SystemExit(f"no documents found in {settings.corpus_dir}")
     exclusions = load_exclusions(settings.corpus_dir)
-    manifest = load_manifest(settings.corpus_dir)
     corpus_root = Path(settings.corpus_dir).resolve()
     fixed = os.environ.get("CHUNK_STRATEGY", "structure") == "fixed"   # Stage B experiment only
     all_chunks: list[Chunk] = []
@@ -120,28 +118,7 @@ def run_pipeline(settings: IndexerSettings) -> int:
 
     # Stage 1: extract every document. A failure is not fatal here: verification records it as a
     # failed quality check and quarantines the file (RAGOps A1).
-    candidates: list[Candidate] = []
-    listed: set[Path] = set()
-    for path, doc_version, superseded in documents:
-        if path.resolve() in listed:    # a manifest row listed twice is one document
-            continue
-        listed.add(path.resolve())
-        if not path.exists():       # quarantined or deleted earlier; the manifest still lists it
-            log("listed document is missing; skipped", source=path.name)
-            continue
-        candidate = Candidate(path=path, doc_version=doc_version, superseded=superseded,
-                              entry=manifest.get(path.resolve(), {}))
-        started = time.perf_counter()
-        try:
-            candidate.doc = extract(str(path), doc_version, superseded)
-        except Exception as exc:    # noqa: BLE001
-            candidate.error = f"{type(exc).__name__}: {exc}"
-            log("extraction failed", source=path.name, error_type=type(exc).__name__,
-                error=str(exc))
-        else:
-            log("extracted", source=path.name, pages=len(candidate.doc.pages),
-                seconds=round(time.perf_counter() - started, 2))
-        candidates.append(candidate)
+    candidates = collect_candidates(documents, settings, log)
     if not candidates:
         raise SystemExit("every document listed for indexing is missing")
 
