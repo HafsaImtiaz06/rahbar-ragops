@@ -507,3 +507,67 @@ def verify(candidates: list[Candidate], settings: IndexerSettings, *,
     log("verification finished", run_id=run_id, report=result.report_md or "(not written)",
         **result.counts())
     return result
+
+
+def collect_candidates(documents: list[tuple[Path, str, bool]], settings: IndexerSettings,
+                       log: Logger) -> list[Candidate]:
+    """Stage 1 of the pipeline: extract every discovered document. An extraction failure is not
+    fatal here; it becomes a failed quality check. Files listed twice count once, and files the
+    manifest lists but that are gone (quarantined or deleted earlier) are skipped."""
+    from . import extract as extract_module
+
+    manifest = load_manifest(settings.corpus_dir)
+    candidates: list[Candidate] = []
+    listed: set[Path] = set()
+    for path, doc_version, superseded in documents:
+        if path.resolve() in listed:
+            continue
+        listed.add(path.resolve())
+        if not path.exists():
+            log("listed document is missing; skipped", source=path.name)
+            continue
+        candidate = Candidate(path=path, doc_version=doc_version, superseded=superseded,
+                              entry=manifest.get(path.resolve(), {}))
+        started = time.perf_counter()
+        try:
+            candidate.doc = extract_module.extract(str(path), doc_version, superseded)
+        except Exception as exc:    # noqa: BLE001
+            candidate.error = f"{type(exc).__name__}: {exc}"
+            log("extraction failed", source=path.name, error_type=type(exc).__name__,
+                error=str(exc))
+        else:
+            log("extracted", source=path.name, pages=len(candidate.doc.pages),
+                seconds=round(time.perf_counter() - started, 2))
+        candidates.append(candidate)
+    return candidates
+
+
+def main(argv: list[str] | None = None) -> int:
+    """python -m pipeline.verify --corpus corpus/raw [--no-move]: verify without indexing."""
+    import argparse
+    import dataclasses
+
+    from .config import get_settings
+    from .run import discover, log
+
+    parser = argparse.ArgumentParser(description="Verify the corpus without building an index")
+    parser.add_argument("--corpus", help="corpus directory (default: CORPUS_DIR)")
+    parser.add_argument("--no-move", action="store_true",
+                        help="report only: do not quarantine or archive any file")
+    parser.add_argument("--quiet", action="store_true", help="hide the JSON log lines")
+    args = parser.parse_args(argv)
+    settings = get_settings()
+    if args.corpus:
+        settings = dataclasses.replace(settings, corpus_dir=args.corpus)
+    quiet: Logger = (lambda *_a, **_k: None) if args.quiet else log
+    candidates = collect_candidates(discover(settings.corpus_dir), settings, quiet)
+    if not candidates:
+        print("no documents to verify")
+        return 1
+    result = verify(candidates, settings, log=quiet, move_files=not args.no_move)
+    print(render_markdown(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

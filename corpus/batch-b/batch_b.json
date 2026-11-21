@@ -1,0 +1,106 @@
+[
+  {
+    "file": "library-rules-2026.md",
+    "name": "Library Rules 2026",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "clean new document (hard question source)",
+    "expect": "index"
+  },
+  {
+    "file": "campus-shuttle-schedule-2026.md",
+    "name": "Campus Shuttle Schedule 2026",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "clean new document (hard question source)",
+    "expect": "index"
+  },
+  {
+    "file": "library-rules-2026-copy.md",
+    "name": "Library Rules 2026",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "exact duplicate of library-rules-2026.md",
+    "check": "uniqueness",
+    "expect": "quarantine"
+  },
+  {
+    "file": "fee-information-prospectus-2026-copy.pdf",
+    "name": "Fee Information (Prospectus 2026)",
+    "doc_version": "2026-27",
+    "superseded": false,
+    "copy_of": "fee-information-prospectus-2026.pdf",
+    "problem": "exact duplicate (byte copy) of the real Fee Information PDF",
+    "check": "uniqueness",
+    "expect": "quarantine"
+  },
+  {
+    "file": "library-rules-2026-reworded.md",
+    "name": "Library Rules 2026 (revised copy)",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "near-duplicate of library-rules-2026.md (two words changed)",
+    "check": "uniqueness",
+    "expect": "quarantine"
+  },
+  {
+    "file": "hostel-rules-2026-truncated.md",
+    "name": "Hostel Rules 2026",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "truncated: ends in the middle of a sentence",
+    "check": "completeness",
+    "expect": "quarantine"
+  },
+  {
+    "file": "hostel-scan-corrupt.pdf",
+    "name": "Hostel Scan 2026",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "corrupt PDF (cannot be read)",
+    "check": "quality",
+    "expect": "quarantine"
+  },
+  {
+    "file": "notice-board-undated.md",
+    "problem": "missing metadata: no title, no date or version",
+    "check": "completeness",
+    "expect": "quarantine"
+  },
+  {
+    "file": "fee-information-prospectus-2027.md",
+    "name": "Fee Information (Prospectus 2027)",
+    "doc_version": "2027-01",
+    "superseded": false,
+    "problem": "newer version of the existing Fee Information document",
+    "check": "recency",
+    "expect": "index",
+    "effect": "the older Fee Information PDF is archived and flagged superseded"
+  },
+  {
+    "file": "campus-notices-injected.md",
+    "name": "Campus Notices: Lost and Found",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "contains an injected instruction (passes verification; caught by the guardrail, part D4)",
+    "expect": "index"
+  },
+  {
+    "file": "exam-hall-seating-garbled.txt",
+    "name": "Exam Hall Seating 2026",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "garbled text (replacement and symbol characters)",
+    "check": "quality",
+    "expect": "quarantine"
+  },
+  {
+    "file": "blank-meeting-notes.md",
+    "name": "Meeting Notes",
+    "doc_version": "2026-09",
+    "superseded": false,
+    "problem": "empty document: a heading and no text",
+    "check": "quality",
+    "expect": "quarantine"
+  }
+]
