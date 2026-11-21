@@ -1,0 +1,13 @@
+# Where the RAGOps data-management stage writes: quarantined and archived documents and the
+# verification reports (+ pins.json for rollbacks). It is a separate volume from the corpus so a
+# bad document is moved OUT of the data lake but is never lost, and the evidence outlives a Job.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ragops-state
+  namespace: rahbar
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
