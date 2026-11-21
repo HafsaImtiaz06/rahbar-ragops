@@ -23,3 +23,6 @@ venv/
 # Local scratch
 *.log
 .DS_Store
+
+# RAGOps verification output (quarantine, archive, reports) created next to the corpus
+.ragops/

@@ -104,28 +104,68 @@ def run_pipeline(settings: IndexerSettings) -> int:
     from .extract import extract
     from .store import reuse_embeddings, store
     from .tokens import count
+    from .verify import Candidate, load_manifest, verify
 
     documents = discover(settings.corpus_dir)
     if not documents:
         raise SystemExit(f"no documents found in {settings.corpus_dir}")
     exclusions = load_exclusions(settings.corpus_dir)
+    manifest = load_manifest(settings.corpus_dir)
     corpus_root = Path(settings.corpus_dir).resolve()
     fixed = os.environ.get("CHUNK_STRATEGY", "structure") == "fixed"   # Stage B experiment only
     all_chunks: list[Chunk] = []
     failures: list[str] = []
     original_tokens = 0
     log("documents discovered", documents=len(documents), corpus=settings.corpus_dir)
-    for number, (path, doc_version, superseded) in enumerate(documents, 1):
+
+    # Stage 1: extract every document. A failure is not fatal here: verification records it as a
+    # failed quality check and quarantines the file (RAGOps A1).
+    candidates: list[Candidate] = []
+    listed: set[Path] = set()
+    for path, doc_version, superseded in documents:
+        if path.resolve() in listed:    # a manifest row listed twice is one document
+            continue
+        listed.add(path.resolve())
+        if not path.exists():       # quarantined or deleted earlier; the manifest still lists it
+            log("listed document is missing; skipped", source=path.name)
+            continue
+        candidate = Candidate(path=path, doc_version=doc_version, superseded=superseded,
+                              entry=manifest.get(path.resolve(), {}))
         started = time.perf_counter()
-        stage = "extract"
         try:
-            doc = extract(str(path), doc_version, superseded)
+            candidate.doc = extract(str(path), doc_version, superseded)
+        except Exception as exc:    # noqa: BLE001
+            candidate.error = f"{type(exc).__name__}: {exc}"
+            log("extraction failed", source=path.name, error_type=type(exc).__name__,
+                error=str(exc))
+        else:
+            log("extracted", source=path.name, pages=len(candidate.doc.pages),
+                seconds=round(time.perf_counter() - started, 2))
+        candidates.append(candidate)
+    if not candidates:
+        raise SystemExit("every document listed for indexing is missing")
+
+    # Stage 1b: verify (quality, completeness, recency, uniqueness), then quarantine or archive.
+    result = verify(candidates, settings, log=log)
+    survivors = result.indexable()
+    if not survivors:
+        raise RuntimeError("no document passed verification; nothing to index "
+                           f"(see {result.report_md or 'the verification log lines'})")
+
+    for number, verdict in enumerate(survivors, 1):
+        path, doc_version = verdict.candidate.path, verdict.candidate.doc_version
+        superseded = verdict.final_superseded
+        started = time.perf_counter()
+        stage = "clean"
+        try:
+            doc = verdict.candidate.doc
+            assert doc is not None
+            doc.superseded = superseded
             doc.identity = (f"{path.resolve().relative_to(corpus_root).as_posix()}\0"
                             f"{doc_version}\0{superseded}")
             skip = exclusions.get(path.resolve(), set())
             if skip:
                 doc.pages = [p for p in doc.pages if p.page not in skip]
-            stage = "clean"
             doc = clean(doc)
             original_tokens += sum(count(p.text) for p in doc.pages)
             stage = "chunk"
@@ -134,7 +174,7 @@ def run_pipeline(settings: IndexerSettings) -> int:
             if not pieces:
                 raise ValueError("document produced no chunks")
             all_chunks.extend(pieces)
-            log("chunked", source=path.name, document=number, documents=len(documents),
+            log("chunked", source=path.name, document=number, documents=len(survivors),
                 pages=len(doc.pages), excluded_pages=len(skip), chunks=len(pieces),
                 ocr_pages=sum(1 for p in doc.pages if p.ocr),
                 empty_pages=sum(1 for p in doc.pages if not p.text.strip()),
@@ -142,11 +182,11 @@ def run_pipeline(settings: IndexerSettings) -> int:
                 seconds=round(time.perf_counter() - started, 2))
         except Exception as exc:  # collect every failure: one bad file must not hide the others
             failures.append(f"{path.name}: {type(exc).__name__}: {exc}")
-            log("document failed", source=path.name, document=number, documents=len(documents),
+            log("document failed", source=path.name, document=number, documents=len(survivors),
                 stage=stage, error_type=type(exc).__name__, error=str(exc),
                 seconds=round(time.perf_counter() - started, 2))
     if failures:   # a partial index silently answers from a partial corpus: build nothing
-        raise RuntimeError(f"index build aborted; {len(failures)} of {len(documents)} "
+        raise RuntimeError(f"index build aborted; {len(failures)} of {len(survivors)} "
                            f"document(s) failed: " + "; ".join(failures))
 
     unique: dict[str, Chunk] = {}
