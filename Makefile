@@ -13,7 +13,7 @@ INGRESS_IP ?= $(shell minikube ip 2>/dev/null)
 HOST ?= rahbar.local
 
 .DEFAULT_GOAL := help
-.PHONY: help install test lint dev cluster images apply secret index ask fetch eval eval-fixtures check corpus-load host-ip top e2e golden-helper sweep
+.PHONY: ragops-shell ragops-shell-stop help install test lint dev cluster images apply secret index ask fetch eval eval-fixtures check corpus-load host-ip top e2e golden-helper sweep
 
 help: ## list the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -58,6 +58,13 @@ corpus-load: ## copy corpus/raw into the corpus PVC (the indexer Job waits for i
 	kubectl wait --for=condition=Ready pod/corpus-loader -n $(NS) --timeout=120s
 	kubectl cp corpus/raw/. $(NS)/corpus-loader:/corpus/
 	kubectl delete pod corpus-loader -n $(NS) --wait=false
+
+ragops-shell: ## pod with the corpus, archive and Chroma access: run inventory / versions inside it
+	kubectl apply -f k8s/tools/ragops-shell.yaml
+	kubectl wait --for=condition=Ready pod/ragops-shell -n $(NS) --timeout=120s
+
+ragops-shell-stop: ## remove the helper pod (the PVCs and everything on them stay)
+	kubectl delete pod ragops-shell -n $(NS) --ignore-not-found --wait=false
 
 host-ip: ## the address of your laptop as seen from minikube (for the NetworkPolicy ipBlock)
 	minikube ssh "grep host.minikube.internal /etc/hosts"

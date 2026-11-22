@@ -72,7 +72,7 @@ spec:
               memory: 512Mi
             limits:
               cpu: "1"
-              memory: 1Gi
+              memory: 2Gi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -80,9 +80,12 @@ spec:
               drop:
                 - ALL
           volumeMounts:
-            - {name: corpus, mountPath: /corpus, readOnly: true}
+            - {name: corpus, mountPath: /corpus}              # writable: quarantined files are moved out
+            - {name: ragops-state, mountPath: /ragops}     # quarantine/, archive/, reports/
             - {name: tmp, mountPath: /tmp}         # OCR scratch files
       volumes:
         - name: corpus
-          persistentVolumeClaim: {claimName: corpus, readOnly: true}
+          persistentVolumeClaim: {claimName: corpus}
         - {name: tmp, emptyDir: {}}
+        - name: ragops-state
+          persistentVolumeClaim: {claimName: ragops-state}
