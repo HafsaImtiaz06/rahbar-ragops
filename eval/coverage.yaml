@@ -1,0 +1,8 @@
+﻿# Part E2/E4 settings for eval/query_coverage.py. Kept in a file (and a ConfigMap on the cluster) so a
+# stricter threshold changes the outcome without a code change.
+embed_model: nomic-embed-text
+# A live query counts as covered when its best cosine similarity to any golden question reaches
+# this score. Chosen from the calibration printout of `query_coverage.py --calibrate` (see E2 report).
+similarity_threshold: 0.70
+# The paper flags a gap when fewer than 85 percent of live queries reach the score.
+min_coverage: 0.85
