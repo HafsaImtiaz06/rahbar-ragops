@@ -1,0 +1,56 @@
+# Part E1: live query log. 42 queries written as if typed by students: 28 in the domain of the
+# golden set (academic rules and fees) and 14 from topics the corpus and the golden set do not
+# cover. `kind` is how the query was designed; `topic` is the label used to group uncovered
+# queries in the E2 report. Coverage is measured against eval/golden.yaml (see query_coverage.py).
+#   paraphrase  the same intent as a golden question, worded differently (should be covered)
+#   domain      same documents as the golden set, but a topic no golden question asks about
+#   offtopic    a topic the original corpus does not hold (Batch B adds some of them: drift, E3)
+
+queries:
+  # --- paraphrase: should be covered by an existing golden question (10) ---
+  - {id: q01, kind: paraphrase, topic: grades, text: "What GPA do I need to stay out of academic warning?"}
+  - {id: q02, kind: paraphrase, topic: course load, text: "How many courses can I register for in one semester?"}
+  - {id: q03, kind: paraphrase, topic: repeating courses, text: "Can I retake a course to get a better grade?"}
+  - {id: q04, kind: paraphrase, topic: grades, text: "How many grade points do A, B and C grades carry?"}
+  - {id: q05, kind: paraphrase, topic: academic integrity, text: "What counts as plagiarism at this university?"}
+  - {id: q06, kind: paraphrase, topic: withdrawal, text: "How do I drop a course after the semester has started?"}
+  - {id: q07, kind: paraphrase, topic: academic integrity, text: "Am I allowed to use ChatGPT for my assignments?"}
+  - {id: q08, kind: paraphrase, topic: degree duration, text: "What is the longest time I can take to finish my BS degree?"}
+  - {id: q09, kind: paraphrase, topic: old rules, text: "How much attendance did the old 2023 rules ask for before the final exam?"}
+  - {id: q10, kind: paraphrase, topic: fees, text: "What is the fine if I pay my semester fee late?"}
+
+  # --- domain: same documents, topics no golden question asks about (18) ---
+  - {id: q11, kind: domain, topic: grade appeals, text: "How do I appeal a grade I think is wrong?"}
+  - {id: q12, kind: domain, topic: academic warning, text: "What happens if I stay on academic warning for two semesters in a row?"}
+  - {id: q13, kind: domain, topic: semester freeze, text: "Can I freeze a semester and come back later?"}
+  - {id: q14, kind: domain, topic: makeup exams, text: "How are makeup exams arranged if I miss a final?"}
+  - {id: q15, kind: domain, topic: graduation requirements, text: "How many credit hours do I need to graduate with a BS?"}
+  - {id: q16, kind: domain, topic: honours, text: "Who qualifies for the dean's honour list?"}
+  - {id: q17, kind: domain, topic: grades, text: "How is my CGPA calculated from my semester GPAs?"}
+  - {id: q18, kind: domain, topic: transfer, text: "Can I transfer from another university and get my credits accepted?"}
+  - {id: q19, kind: domain, topic: summer semester, text: "How many courses can I take in the summer semester?"}
+  - {id: q20, kind: domain, topic: attendance, text: "What attendance do I need under the current 2026 rules?"}
+  - {id: q21, kind: domain, topic: incomplete grade, text: "What is an incomplete grade and how long do I have to finish it?"}
+  - {id: q22, kind: domain, topic: transcripts, text: "How do I get my transcript or degree issued?"}
+  - {id: q23, kind: domain, topic: change of program, text: "Can I change my program after admission?"}
+  - {id: q24, kind: domain, topic: fees, text: "Can I pay my semester fee in installments?"}
+  - {id: q25, kind: domain, topic: fees, text: "How much refund do I get if I withdraw in the first week?"}
+  - {id: q26, kind: domain, topic: programs, text: "Which computing programs does the university offer?"}
+  - {id: q27, kind: domain, topic: admission, text: "What are the admission requirements for BS Computer Science?"}
+  - {id: q28, kind: domain, topic: university report, text: "How many students graduated in 2023-24?"}
+
+  # --- offtopic: not in the original corpus (14); Batch B adds library, hostel, shuttle, fees ---
+  - {id: q29, kind: offtopic, topic: library, text: "What are the library opening hours on Saturday?"}
+  - {id: q30, kind: offtopic, topic: library, text: "How many books can I borrow from the library and for how long?"}
+  - {id: q31, kind: offtopic, topic: library, text: "How much is the fine for returning a library book late?"}
+  - {id: q32, kind: offtopic, topic: hostel, text: "What are the hostel rules for visitors?"}
+  - {id: q33, kind: offtopic, topic: hostel, text: "What is the curfew time in the hostel?"}
+  - {id: q34, kind: offtopic, topic: transport, text: "What time does the morning bus leave from Saddar?"}
+  - {id: q35, kind: offtopic, topic: transport, text: "Do students pay for the campus shuttle?"}
+  - {id: q36, kind: offtopic, topic: transport, text: "Where can I get a parking permit for my motorbike?"}
+  - {id: q37, kind: offtopic, topic: exam logistics, text: "Where can I find my exam hall seating number?"}
+  - {id: q38, kind: offtopic, topic: campus life, text: "How do I join a student society or club?"}
+  - {id: q39, kind: offtopic, topic: campus life, text: "Is there a medical center on campus and when is it open?"}
+  - {id: q40, kind: offtopic, topic: campus life, text: "Is there a gym or sports facility for students?"}
+  - {id: q41, kind: offtopic, topic: IT services, text: "How do I connect to the campus wifi?"}
+  - {id: q42, kind: offtopic, topic: career, text: "When is the career fair and how do I apply for internships?"}
