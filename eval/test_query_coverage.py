@@ -14,6 +14,7 @@ import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import probe_live
 import query_coverage as cov
 
 HERE = Path(__file__).resolve().parent
@@ -109,3 +110,18 @@ def test_the_real_live_log_meets_the_assignment_counts() -> None:
     assert kinds["offtopic"] >= 12                           # at least 12 from uncovered topics
     assert all(q["topic"] and q["text"].endswith("?") for q in live)
     assert cov.load_golden(HERE / "golden.yaml")
+
+
+def test_probe_lists_the_top_retrieved_sections(tmp_path: Path,
+                                                monkeypatch: pytest.MonkeyPatch,
+                                                capsys: pytest.CaptureFixture[str]) -> None:
+
+    reply = {"answer": "2.00", "answered_from_context": True, "confidence": "high",
+             "retrieved": [{"source": "rules.pdf", "section": "5.4", "page": 24, "score": 0.7},
+                           {"source": "rules.pdf", "section": "5.5", "page": 24, "score": 0.6}]}
+    monkeypatch.setattr(probe_live, "ask", lambda _api, _q, timeout=0: reply)
+    code = probe_live.main(["q01", "--out-dir", str(tmp_path), "--label", "t"])
+    assert code == 0 and "rules.pdf  p.24  5.4" in capsys.readouterr().out
+    saved = json.loads((tmp_path / "probe-t.json").read_text())
+    assert saved[0]["id"] == "q01" and saved[0]["retrieved"][0]["section"] == "5.4"
+    assert probe_live.main(["q99", "--out-dir", str(tmp_path)]) == 2

@@ -1,9 +1,9 @@
 {
   "summary": {
     "queries": 42,
-    "covered": 7,
-    "coverage": 0.1667,
-    "similarity_threshold": 0.75,
+    "covered": 9,
+    "coverage": 0.2143,
+    "similarity_threshold": 0.7,
     "min_coverage": 0.85,
     "passes": false,
     "mean_best_score_by_kind": {
@@ -97,12 +97,6 @@
         }
       ],
       "fees": [
-        {
-          "id": "q10",
-          "text": "What is the fine if I pay my semester fee late?",
-          "best_score": 0.7231,
-          "nearest_golden": "g12"
-        },
         {
           "id": "q24",
           "text": "Can I pay my semester fee in installments?",
@@ -258,14 +252,6 @@
           "nearest_golden": "g15"
         }
       ],
-      "university report": [
-        {
-          "id": "q28",
-          "text": "How many students graduated in 2023-24?",
-          "best_score": 0.7101,
-          "nearest_golden": "g10"
-        }
-      ],
       "withdrawal": [
         {
           "id": "q06",
@@ -376,7 +362,7 @@
       "best_score": 0.7231,
       "nearest_golden": "g12",
       "nearest_question": "What is the late-payment fine rate in the 2026 fee information?",
-      "covered": false
+      "covered": true
     },
     {
       "id": "q11",
@@ -556,7 +542,7 @@
       "best_score": 0.7101,
       "nearest_golden": "g10",
       "nearest_question": "What CGPA did the 2023 rules require for graduation?",
-      "covered": false
+      "covered": true
     },
     {
       "id": "q29",
