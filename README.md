@@ -65,6 +65,8 @@ export LLM_API_KEY=...; make secret
 echo "$(minikube ip) rahbar.local" | sudo tee -a /etc/hosts      # macOS/Windows: run `minikube tunnel`, use 127.0.0.1
 make ask Q="What CGPA puts a student on academic warning?"        # or open http://rahbar.local
 make eval                                                         # golden set through the Ingress + the CI gate
+make eval-suite                                                   # M2: full suite (embedding, retrieval, noise, answers) twice; see docs/EVALUATION.md
+make eval-gate                                                    # M2 release gate on the newest results
 ```
 
 Re-index with no redeploy and no downtime: `make index` (= `kubectl create job --from=cronjob/reindex ...`).

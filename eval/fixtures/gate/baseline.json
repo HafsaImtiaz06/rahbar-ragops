@@ -1,0 +1,17 @@
+{
+  "fixture": true,
+  "fixture_note": "TEST FIXTURE: invented numbers that only exercise eval/gate.py. Not an evaluation result.",
+  "profile": "full",
+  "complete": true,
+  "metrics": {
+    "retrieval_api": {
+      "recall_at_5": 0.8
+    },
+    "answer": {
+      "abstention_correctness": 1.0,
+      "faithfulness": 0.9,
+      "latency_seconds_p95": 150.0,
+      "citation_validity": 1.0
+    }
+  }
+}

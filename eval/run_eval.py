@@ -21,9 +21,29 @@ REQUIRED_ABSTENTION = 1.0
 API_TIMEOUT_SECONDS = 240.0
 
 
+def read_jsonl(path: Path) -> list[dict]:
+    rows = []
+
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
+        if not line.strip():
+            continue
+
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            sys.exit(f"{path}:{number}: invalid JSON ({exc.msg})")
+
+    return rows
+
+
 def load_golden(path: Path) -> list[dict]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    questions = data.get("questions") or []
+    if path.suffix == ".jsonl":
+        questions = read_jsonl(path)
+    else:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        questions = data.get("questions") or []
 
     if not questions:
         sys.exit(f"no questions in {path}")
@@ -67,10 +87,17 @@ def section_matches(golden_section: str, retrieved_section: str) -> bool:
 
 
 def _hit(rel: dict, ref: dict) -> bool:
-    return (
-        _norm(rel["source"]) == _norm(ref.get("source", ""))
-        and section_matches(rel["section"], ref.get("section", ""))
-    )
+    if _norm(rel["source"]) != _norm(ref.get("source", "")):
+        return False
+
+    if rel.get("section"):
+        return section_matches(rel["section"], ref.get("section", ""))
+
+    # Page-only ground truth (used where the section string is not known).
+    if rel.get("page") is not None:
+        return ref.get("page") == rel["page"]
+
+    return False
 
 
 def recall_at_k(
