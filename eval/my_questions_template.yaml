@@ -1,0 +1,22 @@
+# YOUR 3+ hand-written golden questions. Copy the entries into eval/golden.yaml in M2's exact schema
+# (ask M2 for it; field names below are placeholders). Write them from the real FAST-NUCES PDFs, not from the model.
+- id: h-m3-01
+  source: human
+  type: answerable
+  question: "<a question a student would really ask>"
+  expected_source: "<pdf filename>"
+  expected_page: 0
+- id: h-m3-02
+  source: human
+  type: hard            # paraphrase with no keywords shared with the source text, or needs 2 chunks
+  question: "<...>"
+  expected_source: "<pdf filename>"
+  expected_page: 0
+- id: h-m3-03
+  source: human
+  type: unanswerable    # plausible, but the corpus does not cover it -> correct behaviour is to abstain
+  question: "<...>"
+- id: h-m3-04
+  source: human
+  type: hard            # about the superseded vs current version of a policy (the corpus has both)
+  question: "<...>"

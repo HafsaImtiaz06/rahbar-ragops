@@ -1,0 +1,12 @@
+# F4: trace JSONL files survive pod restarts. Add to k8s/base/kustomization.yaml -> resources.
+# (ReadWriteOnce is fine on single-node minikube: every api pod, live and candidate, is on the same node.)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: traces
+  namespace: rahbar
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

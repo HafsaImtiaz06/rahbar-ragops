@@ -16,6 +16,8 @@ import time
 
 from ..config import Settings
 from ..logjson import request_id_var
+from ..obs.guardrails import escape_action, scan_chunks
+from ..obs.tracing import Trace, current_trace
 from ..providers.embedding import EmbeddingError
 from ..providers.llm.base import LLMProvider
 from ..retrieval.base import Retriever
@@ -203,6 +205,27 @@ def _extractive_older_attendance_answer(
     return answer, citations
 
 
+def _trace_index(trace: Trace, retriever: Retriever, settings: Settings) -> None:
+    """Record the collection/index the retriever actually resolved, and the pinned embedding model."""
+    try:
+        index_id = getattr(retriever, "index_id", lambda: None)()
+    except Exception:  # tracing must never break answering
+        index_id = None
+    trace.set_collection(index_id or getattr(settings, "chroma_collection", "unknown"),
+                         getattr(settings, "embed_model", None))
+
+
+def _trace_guardrails(trace: Trace, passages: list[Passage]) -> None:
+    """D4: log the injection detector's findings and that the delimiter escaping was applied."""
+    if not passages:
+        return
+    _, actions = scan_chunks(passages)
+    for action in actions:
+        trace.add_guardrail(**action)
+    trace.add_guardrail(**escape_action(len(passages)))
+    trace.set_reranked([p.chunk_id for p in passages])   # order of the passages that reach the prompt
+
+
 def _refs(passages: list[Passage]) -> list[RetrievedRef]:
     return [RetrievedRef(chunk_id=p.chunk_id, source=p.source, section=p.section,
                          page=p.page, score=p.score) for p in passages]
@@ -273,6 +296,33 @@ def answer_question(
     cache: SemanticCache | None = None,
     follow_up: bool = False,
 ) -> AskResponse:
+    """Traced entry point (D1): exactly one trace record per request, even when the pipeline raises."""
+    rid = request_id_var.get()
+    trace = Trace(question, trace_id=rid if rid and rid != "-" else None)
+    trace.rec["llm"]["params"].update(
+        top_k=settings.top_k, relevance_floor=settings.relevance_floor,
+        temperature=getattr(settings, "temperature", None))
+    trace.rec["llm"]["provider"] = provider.name
+    with trace.activate():
+        try:
+            response = _answer_question(question, retriever, provider, settings, cache, follow_up, trace)
+        except Exception as exc:
+            trace.add_guardrail(rail="pipeline", action="exception", error=type(exc).__name__)
+            trace.finish(None, [], abstained=False)
+            raise
+    trace.finish(response.answer, response.citations, abstained=not response.answered_from_context)
+    return response
+
+
+def _answer_question(
+    question: str,
+    retriever: Retriever,
+    provider: LLMProvider,
+    settings: Settings,
+    cache: SemanticCache | None,
+    follow_up: bool,
+    trace: Trace,
+) -> AskResponse:
     older = wants_older_version(question)
     # Never cache: follow-ups, older-version questions (their answer depends on the filter
     # the question text barely changes), abstentions, fallbacks, anything that failed validation.
@@ -291,6 +341,9 @@ def answer_question(
                 hit, similarity = cache.lookup(query_vec, index_id, question)
                 if hit is not None:
                     metrics.CACHE_LOOKUPS.labels(result="hit").inc()
+                    trace.set_cache(True)
+                    trace.set_collection(index_id, getattr(settings, "embed_model", None))
+                    trace.set_outcome("cache_hit")
                     log.info("answered", extra={"cached": True, "similarity": round(similarity, 4),
                                                 "abstained": False, "top_k": settings.top_k})
                     return hit.model_copy(update={"request_id": request_id_var.get(),
@@ -306,11 +359,16 @@ def answer_question(
             use_cache = False
 
     started = time.perf_counter()
-    passages = _retrieve(retriever, question, settings.top_k, older)
+    with trace.stage("retrieve"):
+        passages = _retrieve(retriever, question, settings.top_k, older)
     metrics.RETRIEVAL_SECONDS.observe(time.perf_counter() - started)
+    _trace_index(trace, retriever, settings)
+    trace.set_retrieved(passages, filters={"superseded": "included" if older else False,
+                                           "relevance_floor": settings.relevance_floor})
 
     # Only passages above the floor reach the model: weak neighbours are noise it could cite.
     grounded = [p for p in passages if p.score >= settings.relevance_floor]
+    _trace_guardrails(trace, grounded)
     if not grounded:
         metrics.ABSTENTIONS.labels(reason="below_relevance_floor").inc()
         response = AskResponse(
@@ -321,8 +379,13 @@ def answer_question(
         return response
 
     started = time.perf_counter()
-    validated = generate_validated(question, grounded, provider)
+    with trace.stage("generate"):          # generation + validation (+ one retry)
+        validated = generate_validated(question, grounded, provider)
     metrics.GENERATION_SECONDS.observe(time.perf_counter() - started)
+    if validated is not None:
+        n_dropped = len(validated[0].citations) - len(validated[1])
+        if n_dropped > 0:
+            trace.add_guardrail(rail="citation_check", action="dropped_fabricated", n=n_dropped)
 
     # Narrow extractive recoveries cover explicit policy rules if generation or validation fails.
     # They see only passages returned for this request and above the relevance floor.
@@ -366,6 +429,9 @@ def answer_question(
 
 def _log(settings: Settings, retriever: Retriever, provider: LLMProvider,
          passages: list[Passage], response: AskResponse, reason: str | None) -> None:
+    active = current_trace()
+    if active is not None:
+        active.set_outcome(reason)
     log.info("answered", extra={
         "retriever": retriever.name, "provider": provider.name, "top_k": settings.top_k,
         "chunk_ids": [p.chunk_id for p in passages],
