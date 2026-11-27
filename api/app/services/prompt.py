@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from html import escape
 
+from ..obs.tracing import record_prompt
 from ..schemas import Answer, Passage
 
 SYSTEM = """You are RAHBAR, a question-answering assistant for university policy documents.
@@ -52,7 +53,10 @@ def build_messages(question: str, passages: list[Passage], with_schema: bool = F
         "<evidence>\n" + "\n".join(blocks) + "\n</evidence>\n\n"
         f"<question>\n{escape(question, quote=False)}\n</question>"
     )
-    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    # D2: the exact text sent to the model goes into the request's trace (no-op outside a traced request)
+    record_prompt("\n\n".join(f"[{m['role']}]\n{m['content']}" for m in messages))
+    return messages
 
 
 def _attr(value: str) -> str:

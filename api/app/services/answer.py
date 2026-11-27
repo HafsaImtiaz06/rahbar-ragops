@@ -303,6 +303,7 @@ def answer_question(
         top_k=settings.top_k, relevance_floor=settings.relevance_floor,
         temperature=getattr(settings, "temperature", None))
     trace.rec["llm"]["provider"] = provider.name
+    trace.rec["llm"]["model"] = getattr(settings, "llm_model", None) or trace.rec["llm"]["model"]
     with trace.activate():
         try:
             response = _answer_question(question, retriever, provider, settings, cache, follow_up, trace)
