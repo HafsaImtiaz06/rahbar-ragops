@@ -13,7 +13,7 @@ INGRESS_IP ?= $(shell minikube ip 2>/dev/null)
 HOST ?= rahbar.local
 
 .DEFAULT_GOAL := help
-.PHONY: help install test lint dev cluster images apply secret index ask fetch eval eval-fixtures check corpus-load host-ip top e2e golden-helper sweep
+.PHONY: help install test lint dev cluster images apply secret index ask fetch eval eval-fixtures check corpus-load host-ip top e2e golden-helper sweep eval-test eval-golden eval-suite eval-gate eval-image eval-job
 
 help: ## list the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -99,3 +99,24 @@ eval-fixtures: ## score the CI fixture golden set against a local `make dev`
 
 check: ## run the submission checker
 	$(PY) scripts/check_submission.py
+
+eval-test: ## unit tests for the M2 evaluation code (metrics, golden set, gate, suite)
+	cd eval && $(BIN)/python -m pytest -q
+
+eval-golden: ## validate eval/golden.jsonl (add ARGS='--corpus corpus/raw' to check it against the PDFs)
+	$(BIN)/python eval/golden_set.py $(ARGS)
+
+eval-suite: ## the complete M2 suite, twice, against the Ingress (needs Ollama and corpus/raw)
+	$(BIN)/python eval/suite.py --api "http://$(INGRESS_IP)" --host $(HOST) $(ARGS)
+
+eval-gate: ## apply the release gate (eval/gate.yaml) to the newest eval/results/*-eval.json
+	$(BIN)/python eval/gate.py $(ARGS)
+
+eval-image: ## build the evaluation image (context = repo root) and load it into minikube
+	docker build -f eval/Dockerfile -t rahbar-eval:$(TAG) .
+	minikube image load rahbar-eval:$(TAG)
+
+eval-job: ## run the evaluation + gate as a Kubernetes Job (a Job is immutable: the old one is deleted)
+	kubectl delete job eval -n $(NS) --ignore-not-found
+	kubectl apply -k k8s/
+	kubectl logs -f job/eval -n $(NS)

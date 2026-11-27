@@ -1,0 +1,162 @@
+# F2: the evaluation Job. It runs the whole M2 suite against the in-cluster API and then the
+# release gate, writes timestamped results to a PersistentVolume, and reads the gate thresholds
+# from a ConfigMap, so a threshold change needs no image rebuild.
+#
+#   make eval-image                  build rahbar-eval:dev and load it into minikube
+#   make eval-job                    delete the old Job, apply this file, follow the log
+#
+# Not part of k8s/base on purpose: applying the stack must not start a one-hour evaluation
+# against an API that is not ready yet. k8s/kustomization.yaml makes this file its own
+# kustomization (`kubectl apply -k k8s/`).
+#
+# Change a threshold WITHOUT rebuilding anything:
+#   kubectl -n rahbar edit configmap rahbar-eval-thresholds     # e.g. min_faithfulness: 0.95
+#   kubectl -n rahbar delete job eval --ignore-not-found && kubectl apply -k k8s/
+# (a Job's pod template is immutable, so it is recreated; the image and the ConfigMap's
+#  consumer are untouched)
+#
+# The Job exits non-zero when the suite is incomplete (2) or the gate fails (1); backoffLimit 0
+# because retrying a failed gate would only hide it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rahbar-eval-thresholds
+  namespace: rahbar
+data:
+  # Kept identical to eval/gate.yaml; eval/test_manifests.py fails if the two drift apart.
+  gate.yaml: |
+    # Release-gate thresholds (C2). Read by eval/gate.py; on the cluster the same file is mounted
+    # from the ConfigMap `rahbar-eval-thresholds` (k8s/eval-job.yaml), so changing a value there
+    # changes the gate result without rebuilding any image.
+    #
+    # These are STARTING VALUES, not tuned ones: nobody has run the full suite on the real model
+    # yet. After the first complete run, set them from the measured numbers and record why.
+
+    # The baseline the gate compares with: a results file written by `gate.py promote`.
+    # (eval/baseline.json is the older run_eval.py baseline on a different, 15-question golden set;
+    # do not compare the 27-question suite against it.)
+    baseline: eval/baseline.m2.json
+
+    # Which metric is "recall@5" for the drop rule. The API-observed one guards the deployed system.
+    recall_metric: retrieval_api.recall_at_5
+
+    # Recall@5 may fall at most this many percentage points below the baseline.
+    max_recall_at_5_drop_pp: 2.0
+
+    # Faithfulness (answers supported by their cited passages) must be at least this.
+    min_faithfulness: 0.80
+
+    # 95th-percentile latency in seconds must be at most this. The ConfigMap's LLM_TIMEOUT is 240.
+    max_p95_latency_seconds: 240
+
+    # Abstention correctness may not be worse than baseline, minus this tolerance (0 = no drop).
+    abstention_tolerance: 0.0
+
+    # Citation validity floor (the original run_eval.py gate used 0.95).
+    min_citation_validity: 0.95
+
+    # Optional: the largest tolerated share of answerable questions that were refused.
+    # Leave null to switch it off.
+    max_over_abstention_rate: null
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eval-results
+  namespace: rahbar
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# default-deny-all is in force (networkpolicies.yaml), so the Job needs its own paths:
+# eval -> api, and eval -> Ollama on the laptop (embedding and judge). DNS is already allowed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: eval-egress, namespace: rahbar}
+spec:
+  podSelector: {matchLabels: {app: eval}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: api}}}]
+      ports: [{protocol: TCP, port: 8000}]
+    # Same address as api-egress / indexer-egress: `make host-ip` prints yours.
+    - to: [{ipBlock: {cidr: 192.168.65.254/32}}]
+      ports: [{protocol: TCP, port: 11434}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: api-from-eval, namespace: rahbar}
+spec:
+  podSelector: {matchLabels: {app: api}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: eval}}
+      ports:
+        - {protocol: TCP, port: 8000}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eval
+  namespace: rahbar
+  labels: {app: eval}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 10800        # two repetitions of the suite on a CPU model take over an hour
+  template:
+    metadata:
+      labels: {app: eval}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: eval
+          image: rahbar-eval:dev
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "== suite"
+              python suite.py --api http://api:8000 --corpus /corpus --out-dir /results \
+                --ollama-url "$OLLAMA_URL" --embed-model "$EMBED_MODEL" \
+                --chunk-size "$CHUNK_SIZE" --chunk-overlap "$CHUNK_OVERLAP" \
+                --judge ollama --judge-model "$LLM_MODEL" --seed 1337 --repeat 2
+              echo "== release gate (thresholds from $GATE_CONFIG)"
+              python gate.py --results-dir /results
+          envFrom:
+            - configMapRef: {name: rahbar-config}
+          env:
+            - {name: GATE_CONFIG, value: /etc/rahbar/eval/gate.yaml}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - {name: thresholds, mountPath: /etc/rahbar/eval, readOnly: true}
+            - {name: corpus, mountPath: /corpus, readOnly: true}
+            - {name: results, mountPath: /results}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: thresholds
+          configMap: {name: rahbar-eval-thresholds}
+        - name: corpus
+          persistentVolumeClaim: {claimName: corpus, readOnly: true}
+        - name: results
+          persistentVolumeClaim: {claimName: eval-results}
+        - {name: tmp, emptyDir: {}}
