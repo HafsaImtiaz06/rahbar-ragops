@@ -5,6 +5,7 @@ resources:
   - serviceaccounts.yaml
   - configmap.yaml
   - corpus-pvc.yaml
+  - ragops-state-pvc.yaml
   - chroma.yaml
   - redis.yaml
   - api.yaml

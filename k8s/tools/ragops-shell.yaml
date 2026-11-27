@@ -1,0 +1,48 @@
+# A throwaway pod for the RAGOps commands that need the cluster's corpus, archive and Chroma:
+#   python -m pipeline.inventory ...     python -m pipeline.versions list|restore|unpin
+# Not in any kustomization. `make ragops-shell` starts it; `make ragops-shell-stop` removes it.
+# app=indexer so the indexer NetworkPolicy lets it reach Chroma and Ollama.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ragops-shell
+  namespace: rahbar
+  labels: {app: indexer}
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile: {type: RuntimeDefault}
+  containers:
+    - name: shell
+      image: rahbar-indexer:dev
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "3600"]
+      envFrom:
+        - configMapRef: {name: rahbar-config}
+      env:
+        - {name: CORPUS_DIR, value: /corpus}
+      resources:
+        requests: {cpu: 50m, memory: 128Mi}
+        limits: {cpu: 500m, memory: 512Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - {name: corpus, mountPath: /corpus}
+        - {name: ragops-state, mountPath: /ragops}
+        - {name: tmp, mountPath: /tmp}
+  volumes:
+    - name: corpus
+      persistentVolumeClaim: {claimName: corpus}
+    - name: ragops-state
+      persistentVolumeClaim: {claimName: ragops-state}
+    - {name: tmp, emptyDir: {}}

@@ -34,3 +34,13 @@ data:
   # CPU Ollama measured p50 75 s, p95 180 s (eval/baseline.json): the default 90 s turned slow answers into fallbacks
   LLM_TIMEOUT: "240"
   LOG_LEVEL: "INFO"
+  # RAGOps verification (indexer/pipeline/verify.py). Thresholds are config, not code, so a
+  # stricter run needs `kubectl apply` and a Job, not an image rebuild.
+  # cosine similarity of two documents' embeddings at or above this = near-duplicate (quarantined)
+  NEAR_DUP_THRESHOLD: "0.97"
+  # fewer extracted characters than this = the document is treated as empty / unreadable
+  VERIFY_MIN_CHARS: "100"
+  # all three live on the ragops-state volume mounted at /ragops
+  QUARANTINE_DIR: "/ragops/quarantine"
+  ARCHIVE_DIR: "/ragops/archive"
+  REPORT_DIR: "/ragops/reports"

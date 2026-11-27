@@ -261,7 +261,7 @@ def check_completeness(c: Candidate, v: Verdict) -> Check:
         pdf_pages, pdf_title, pdf_problem = _pdf_info(c.path)
     title = entry.get("title") or entry.get("name") or fm.get("title") or pdf_title
     if not title and c.doc and c.path.suffix.lower() == ".md":
-        heading = re.search(r"^#\s+(.+)$", c.doc.pages[0].text, re.M) if c.doc.pages else None
+        heading = re.search(r"^#\s+(.+)$", c.doc.pages[0].text, re.MULTILINE) if c.doc.pages else None
         title = heading.group(1).strip() if heading else None
     date = entry.get("date") or fm.get("date")
     pages = len(c.doc.pages) if c.doc else (pdf_pages or 0)
@@ -294,23 +294,32 @@ def check_completeness(c: Candidate, v: Verdict) -> Check:
                        f"text not truncated")
 
 
-def _apply_recency(verdicts: list[Verdict]) -> None:
+def _rank(v: Verdict, pins: set[str]) -> tuple[int, tuple[int, ...]]:
+    """A restored (pinned) version outranks every other version of its document."""
+    return (1 if v.candidate.source in pins else 0, version_tuple(v.candidate.doc_version))
+
+
+def _apply_recency(verdicts: list[Verdict], pins: set[str] | None = None) -> None:
     """Fail every document that has a newer version, among documents that are themselves
-    readable and complete (a corrupt newer file must not retire the good older one)."""
+    readable and complete (a corrupt newer file must not retire the good older one). A version
+    the user restored with `pipeline.versions restore` counts as the newest."""
+    pins = pins or set()
     valid = [v for v in verdicts if v.checks["quality"].passed and v.checks["completeness"].passed]
     keys: dict[str, list[Verdict]] = {}
     for v in valid:
         keys.setdefault(_key_of(v), []).append(v)
     for v in verdicts:
-        mine = version_tuple(v.candidate.doc_version)
-        newer = [o for o in keys.get(_key_of(v), []) if o is not v
-                 and version_tuple(o.candidate.doc_version) > mine]
-        if newer and mine:
-            best = max(newer, key=lambda o: version_tuple(o.candidate.doc_version))
-            v.checks["recency"] = Check(
-                False, f"superseded: {best.candidate.label or best.candidate.source} "
-                       f"is a newer version ({best.candidate.doc_version} > "
-                       f"{v.candidate.doc_version})")
+        mine = _rank(v, pins)
+        newer = [o for o in keys.get(_key_of(v), []) if o is not v and _rank(o, pins) > mine]
+        if newer and (mine[1] or mine[0]):
+            best = max(newer, key=lambda o: _rank(o, pins))
+            name = best.candidate.label or best.candidate.source
+            if _rank(best, pins)[0]:
+                reason = f"superseded: {name} was restored (rollback) as the current version"
+            else:
+                reason = (f"superseded: {name} is a newer version "
+                          f"({best.candidate.doc_version} > {v.candidate.doc_version})")
+            v.checks["recency"] = Check(False, reason)
         else:
             v.checks["recency"] = Check(True, "no newer version of this document in the corpus")
 
@@ -404,8 +413,8 @@ def _move_files(verdicts: list[Verdict], settings: IndexerSettings, run_id: str,
 def render_markdown(result: VerificationResult) -> str:
     c = result.counts()
     out = [f"# Verification report {result.run_id}", "",
-           f"Documents: {c['documents']} | indexed: {c['index']} | "
-           f"archived (superseded): {c['archive']} | quarantined: {c['quarantine']}", "",
+           (f"Documents: {c['documents']} | indexed: {c['index']} | "
+            f"archived (superseded): {c['archive']} | quarantined: {c['quarantine']}"), "",
            "| Document | Version | " + " | ".join(CHECKS) + " | Outcome |",
            "| --- | --- | " + " | ".join("---" for _ in CHECKS) + " | --- |"]
     for v in result.verdicts:
@@ -447,6 +456,15 @@ def _write_report(result: VerificationResult, settings: IndexerSettings,
             report=payload)
 
 
+def load_pins(report_dir: Path) -> set[str]:
+    """Documents restored by hand (`python -m pipeline.versions restore`)."""
+    try:
+        data = json.loads((report_dir / "pins.json").read_text(encoding="utf-8"))
+        return {str(x) for x in data.get("restored", [])}
+    except (OSError, ValueError, AttributeError):
+        return set()
+
+
 def default_embedder(settings: IndexerSettings) -> Embedder:
     from . import embed as embed_module
 
@@ -456,12 +474,14 @@ def default_embedder(settings: IndexerSettings) -> Embedder:
 # -- entry point ----------------------------------------------------------------------
 def verify(candidates: list[Candidate], settings: IndexerSettings, *,
            embedder: Embedder | None = None, run_id: str | None = None,
-           log: Logger | None = None, move_files: bool = True) -> VerificationResult:
+           log: Logger | None = None, move_files: bool = True,
+           pins: set[str] | None = None) -> VerificationResult:
     log = log or (lambda *_a, **_k: None)
     run_id = run_id or time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _, _, report_dir = _dirs(settings)
     first_seen = _load_state(report_dir)
+    pins = load_pins(report_dir) if pins is None else pins
     root = Path(settings.corpus_dir).resolve()
 
     verdicts: list[Verdict] = []
@@ -480,7 +500,7 @@ def verify(candidates: list[Candidate], settings: IndexerSettings, *,
         v.checks["completeness"] = check_completeness(c, v)
         verdicts.append(v)
 
-    _apply_recency(verdicts)
+    _apply_recency(verdicts, pins)
     # near-duplicate comparison needs embeddings; only readable documents have a sample
     for v in verdicts:
         if not v.checks["quality"].passed:
