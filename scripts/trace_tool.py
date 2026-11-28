@@ -39,11 +39,17 @@ def render(r, prompt_only=False):
         p(f"LLM              : {r['llm']}")
         p("")
         p("RETRIEVED (in rank order)")
-        p(f"  {'#':<3}{'score':<9}{'source':<26}{'page':<6}{'ver':<6}{'old?':<6}chunk_id / section")
+        p(f"  {'#':<3}{'score':<8}{'page':<6}{'ver':<9}{'old?':<7}source | section")
         for h in r["retrieved"]:
-            p(f"  {h['rank']:<3}{h['score']:<9}{str(h['doc_id'])[:24]:<26}{str(h.get('page')):<6}"
-              f"{str(h.get('doc_version')):<6}{str(h.get('superseded')):<6}{h['chunk_id']}  | {h.get('section')}")
-        p(f"Order in prompt  : {r['reranked_order']}")
+            p(f"  {h['rank']:<3}{h['score']:<8}{str(h.get('page')):<6}{str(h.get('doc_version')):<9}"
+              f"{str(h.get('superseded')):<7}{h['doc_id']} | {h.get('section')}")
+            p(f"  {'':<33}chunk_id: {h['chunk_id']}")
+        rank_order = [h["chunk_id"] for h in r["retrieved"]]
+        if r["reranked_order"] == rank_order:
+            p(f"Order in prompt  : same as retrieval rank (#1..#{len(rank_order)}): no reranking changed it")
+        else:
+            nums = {c: i + 1 for i, c in enumerate(rank_order)}
+            p("Order in prompt  : retrieval ranks " + str([nums.get(c, c) for c in r["reranked_order"]]))
         p("")
         p("GUARDRAIL ACTIONS")
         for a in r["guardrail_actions"] or ["(none)"]:
