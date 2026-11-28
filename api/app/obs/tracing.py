@@ -20,7 +20,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
+_TOP1: Any = None
+_INJ: Any = None
 try:  # extra Prometheus series on the EXISTING /metrics endpoint (D3 / F4); optional
     from prometheus_client import Counter, Histogram
 
@@ -66,7 +69,7 @@ def is_injection_action(a: dict) -> bool:
 
 class Trace:
     def __init__(self, user_query: str, trace_id: str | None = None, trace_dir: str | None = None):
-        self._dir = trace_dir or os.getenv("TRACE_DIR", "/data/traces")
+        self._dir: str = trace_dir or os.environ.get("TRACE_DIR") or "/data/traces"
         self._t0 = time.perf_counter()
         self.rec: dict = {
             "trace_id": trace_id or uuid.uuid4().hex,

@@ -65,9 +65,11 @@ spec:
       ports: [{protocol: TCP, port: 8000}]
     - to: [{podSelector: {matchLabels: {app: redis}}}]
       ports: [{protocol: TCP, port: 6379}]
-    # Ollama on the laptop. Replace the address with the output of:
+    # Ollama on the laptop. Both addresses are allowed so the same manifests work on every team laptop:
+    #   192.168.65.254 = Docker Desktop's host (M1), 192.168.49.1 = the minikube docker-driver gateway on WSL (M3).
+    # If `make host-ip` prints neither, add yours here and in indexer-egress and k8s/eval-job.yaml:
     #   minikube ssh "grep host.minikube.internal /etc/hosts"      (make host-ip)
-    - to: [{ipBlock: {cidr: 192.168.65.254/32}}]
+    - to: [{ipBlock: {cidr: 192.168.65.254/32}}, {ipBlock: {cidr: 192.168.49.1/32}}]
       ports: [{protocol: TCP, port: 11434}]
 ---
 apiVersion: networking.k8s.io/v1
@@ -104,5 +106,5 @@ spec:
   egress:
     - to: [{podSelector: {matchLabels: {app: chroma}}}]
       ports: [{protocol: TCP, port: 8000}]
-    - to: [{ipBlock: {cidr: 192.168.65.254/32}}]
+    - to: [{ipBlock: {cidr: 192.168.65.254/32}}, {ipBlock: {cidr: 192.168.49.1/32}}]
       ports: [{protocol: TCP, port: 11434}]

@@ -4,14 +4,21 @@
     python scripts/load_test.py --questions eval/golden.yaml --n 60 --c 4
 By default repeated questions can be served by the semantic cache; pass --bust to append a unique token to each
 question and measure the uncached path (do both and report both in F5)."""
-import argparse, itertools, json, re, statistics, threading, time, urllib.request
+import argparse
+import itertools
+import json
+import re
+import statistics
+import threading
+import time
+import urllib.request
 
 
 def load_questions(path):
     txt = open(path, encoding="utf-8").read()
     qs = [m.group(1).strip().strip('"\'') for m in re.finditer(r'["\']?question["\']?\s*:\s*(.+)', txt)]
     qs = [q.rstrip(",").strip('"\'') for q in qs]
-    return qs or [l.strip() for l in txt.splitlines() if l.strip()]
+    return qs or [ln.strip() for ln in txt.splitlines() if ln.strip()]
 
 
 def main():

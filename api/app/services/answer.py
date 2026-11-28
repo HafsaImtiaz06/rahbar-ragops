@@ -207,12 +207,21 @@ def _extractive_older_attendance_answer(
 
 def _trace_index(trace: Trace, retriever: Retriever, settings: Settings) -> None:
     """Record the collection/index the retriever actually resolved, and the pinned embedding model."""
-    try:
-        index_id = getattr(retriever, "index_id", lambda: None)()
-    except Exception:  # tracing must never break answering
-        index_id = None
-    trace.set_collection(index_id or getattr(settings, "chroma_collection", "unknown"),
-                         getattr(settings, "embed_model", None))
+    collection: str = settings.collection
+    index_id: str | None = None
+    embed_model: str = settings.embed_model
+    try:  # tracing must never break answering
+        info = getattr(retriever, "index_info", None)
+        if callable(info):
+            resolved = info()
+            collection = resolved.collection
+            index_id = resolved.index_id
+            embed_model = resolved.embed_model or embed_model
+        else:
+            index_id = retriever.index_id()
+    except Exception:
+        pass
+    trace.set_collection(collection, embed_model, embed_version=index_id)
 
 
 def _trace_guardrails(trace: Trace, passages: list[Passage]) -> None:
@@ -309,7 +318,7 @@ def answer_question(
             response = _answer_question(question, retriever, provider, settings, cache, follow_up, trace)
         except Exception as exc:
             trace.add_guardrail(rail="pipeline", action="exception", error=type(exc).__name__)
-            trace.finish(None, [], abstained=False)
+            trace.finish("", [], abstained=False)
             raise
     trace.finish(response.answer, response.citations, abstained=not response.answered_from_context)
     return response

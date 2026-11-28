@@ -1,7 +1,11 @@
 """F5 step 2: turn a measurement CSV into suggested requests/limits.
 Rule used (state it in the report): CPU request = avg rounded up to 50m, CPU limit = 2 x peak;
 memory request = peak x 1.1, memory limit = peak x 1.5 (memory is not compressible, so limit has headroom)."""
-import csv, math, re, sys, collections
+import csv
+import math
+import re
+import sys
+import collections
 
 
 def up(x, step):
@@ -14,7 +18,8 @@ for r in csv.DictReader(open(sys.argv[1])):
     rows[kind].append((float(r["cpu_m"]), float(r["mem_mi"])))
 print(f"{'workload':<22}{'samples':>8}{'cpu avg/peak (m)':>20}{'mem avg/peak (Mi)':>20}   suggested")
 for k, v in rows.items():
-    cpu = [c for c, _ in v]; mem = [m for _, m in v]
+    cpu = [c for c, _ in v]
+    mem = [m for _, m in v]
     ca, cp, ma, mp = sum(cpu)/len(cpu), max(cpu), sum(mem)/len(mem), max(mem)
     print(f"{k:<22}{len(v):>8}{ca:>11.0f}/{cp:<8.0f}{ma:>12.0f}/{mp:<7.0f}   "
           f"requests cpu={up(ca,50)}m mem={up(mp*1.1,32)}Mi | limits cpu={up(cp*2,100)}m mem={up(mp*1.5,64)}Mi")

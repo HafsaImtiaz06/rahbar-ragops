@@ -82,7 +82,7 @@ spec:
     - to: [{podSelector: {matchLabels: {app: api}}}]
       ports: [{protocol: TCP, port: 8000}]
     # Same address as api-egress / indexer-egress: `make host-ip` prints yours.
-    - to: [{ipBlock: {cidr: 192.168.65.254/32}}]
+    - to: [{ipBlock: {cidr: 192.168.65.254/32}}, {ipBlock: {cidr: 192.168.49.1/32}}]
       ports: [{protocol: TCP, port: 11434}]
 ---
 apiVersion: networking.k8s.io/v1

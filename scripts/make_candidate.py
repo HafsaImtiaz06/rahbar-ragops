@@ -3,7 +3,7 @@
 drift from your base (same image, probes, securityContext, NetworkPolicy-relevant labels).
 
     kubectl kustomize k8s/overlays/dev | python scripts/make_candidate.py \
-        --env TOP_K=8 --env CHROMA_COLLECTION=rahbar-v2 > k8s/candidate/api-candidate.yaml
+        --env TOP_K=8 --env CHROMA_COLLECTION=cand > k8s/candidate/api-candidate.yaml
 
 * name api -> api-candidate, 1 replica, no HPA; pod labels = live labels + track=candidate
   (same `app` label, so the existing NetworkPolicies still match; Service selects track=candidate only).

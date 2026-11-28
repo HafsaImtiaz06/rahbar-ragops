@@ -86,8 +86,11 @@ def table(s):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", nargs="+", default=["traces"])
-    ap.add_argument("--last"); ap.add_argument("--since"); ap.add_argument("--until")
-    ap.add_argument("--out"); ap.add_argument("--json", action="store_true")
+    ap.add_argument("--last")
+    ap.add_argument("--since")
+    ap.add_argument("--until")
+    ap.add_argument("--out")
+    ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
     since = parse_ts(a.since) if a.since else None
     until = parse_ts(a.until) if a.until else None
