@@ -3,7 +3,7 @@
 # README's `make cluster` already does).   scripts/measure_resources.sh <regex> <seconds> <out.csv>
 #   scripts/measure_resources.sh '^api-|^chroma-|^redis-' 120 eval/results/resources_serving.csv   # during load_test
 #   scripts/measure_resources.sh 'indexer'               300 eval/results/resources_indexer.csv    # during the Job
-#   scripts/measure_resources.sh 'rag-eval'              300 eval/results/resources_eval.csv
+#   scripts/measure_resources.sh '^eval-'                300 eval/results/resources_eval.csv
 set -euo pipefail
 NS=${NS:-rahbar}; PAT=${1:?regex}; SECS=${2:-120}; OUT=${3:-eval/results/resources.csv}
 mkdir -p "$(dirname "$OUT")"; echo "ts,pod,cpu_m,mem_mi" > "$OUT"
