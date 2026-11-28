@@ -1,0 +1,9 @@
+# The evaluation Job on its own (F2). Opt-in: `kubectl apply -k k8s/` after the stack is up.
+# It is deliberately not listed in k8s/base/kustomization.yaml, so `make apply` and the CI
+# deploy never start an hour-long evaluation. Images get the same tag as the dev overlay.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - eval-job.yaml
+images:
+  - {name: rahbar-eval, newTag: dev}

@@ -74,6 +74,8 @@ the distribution of top-1 scores for answerable versus must-abstain golden quest
 too low lets off-topic questions reach the model.
 
 ## Evaluation method
+The full M2 suite, metric definitions, release gate and the chunk-size experiment (C1) are in docs/EVALUATION.md.
+
 `eval/run_eval.py`. A golden question lists its relevant passages as `(source, section)` pairs, not chunk ids, because chunk
 ids change whenever chunking changes while the section a clause lives in does not. A retrieved passage matches a golden one
 when the source file names are equal and the sections are equal, or the golden section is a clause-number prefix of the

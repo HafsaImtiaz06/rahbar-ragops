@@ -1,0 +1,8 @@
+# Only what the image needs: everything else (the corpus PDFs, results, .git) stays out.
+*
+!eval
+!indexer/pipeline
+!indexer/requirements.txt
+!api/app/retrieval/version.py
+**/__pycache__
+eval/results

@@ -35,7 +35,7 @@ jobs:
       # Stub retriever and stub provider: no network, no model, no cluster.
       - run: cd api && pytest -q --cov=app --cov-report=term-missing --cov-fail-under=60
       - run: cd indexer && pytest -q --cov=pipeline --cov-report=term
-      - run: pip install pyyaml==6.0.2 && cd eval && python -m pytest -q test_run_eval.py
+      - run: pip install pyyaml==6.0.2 && cd eval && python -m pytest -q
 
   manifests:
     runs-on: ubuntu-latest
@@ -56,6 +56,7 @@ jobs:
           sudo mv kustomize kubeconform /usr/local/bin/
       - run: kustomize build k8s/overlays/prod | kubeconform -strict -summary -kubernetes-version 1.30.0
       - run: kustomize build k8s/overlays/dev | kubeconform -strict -summary -kubernetes-version 1.30.0
+      - run: kustomize build k8s | kubeconform -strict -summary -kubernetes-version 1.30.0
 
   build:
     needs: [lint, test]               # do not spend build minutes on code that already fails
