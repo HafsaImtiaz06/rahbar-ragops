@@ -14,3 +14,8 @@ resources:
   - networkpolicies.yaml
   - indexer-job.yaml
   - reindex-cronjob.yaml
+  - traces-pvc.yaml
+
+patches:
+  - path: patch-api-traces.yaml
+  - path: patch-api-service-track.yaml

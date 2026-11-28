@@ -1,0 +1,25 @@
+# Strategic-merge patch for the api Deployment (listed under `patches:` in k8s/base/kustomization.yaml).
+# Verified against api.yaml: container is named "api", pod already has securityContext + a /tmp emptyDir.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: rahbar
+spec:
+  template:
+    metadata:
+      labels:
+        track: live                 # so the live Service can exclude candidate pods
+    spec:
+      securityContext:
+        fsGroup: 2000               # makes the traces volume group-writable for uid 10001 (root fs is read-only)
+      containers:
+        - name: api
+          env:
+            - {name: TRACE_DIR,     value: /data/traces}
+            - {name: RELEASE_TRACK, value: live}
+          volumeMounts:
+            - {name: traces, mountPath: /data/traces}
+      volumes:
+        - name: traces
+          persistentVolumeClaim: {claimName: traces}

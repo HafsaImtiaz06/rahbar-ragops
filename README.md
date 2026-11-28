@@ -45,6 +45,8 @@ make cluster
 
 # 2. The host address for the NetworkPolicy. If it is not 192.168.49.1, edit the two ipBlock lines in
 #    k8s/base/networkpolicies.yaml (api-egress, indexer-egress) and OLLAMA_URL in k8s/base/configmap.yaml.
+#    Both 192.168.65.254 (Docker Desktop) and 192.168.49.1 (native Linux) are already allowed; on WSL 2 + Docker Desktop use
+#    192.168.65.254 in OLLAMA_URL. Details: k8s/README.md.
 make host-ip
 
 # 3. Python tools, the corpus (downloads the documents listed in corpus/sources.yaml), and the images
@@ -94,6 +96,23 @@ disagree), `LLM_PROVIDER`, `CHROMA_HOST`. Embeddings are always served from `OLL
 `*secret*.yaml` is gitignored. [`k8s/base/secret.placeholder.yaml`](k8s/base/secret.placeholder.yaml) documents the shape with
 `REPLACE_ME`, and is not in any kustomization. The real Secret is created with `make secret`
 (`kubectl create secret generic rahbar-secret ... --from-literal`). Base64 is encoding, not encryption.
+
+## Parts D and F: tracing, metrics, release (commands)
+
+Full commands, field tables and F5 steps: [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) and [`k8s/README.md`](k8s/README.md).
+
+```bash
+# D1/D2: ask with a known trace id, then print the exact context and prompt that produced the answer
+kubectl -n rahbar port-forward svc/api 18000:8000 &
+curl -s -X POST localhost:18000/api/ask -H 'Content-Type: application/json' -H 'X-Request-ID: demo-1' -d '{"question": "What CGPA puts a student on academic warning?"}'
+kubectl -n rahbar logs -l app=api --tail=500 --max-log-requests=20 --prefix=false | python scripts/trace_tool.py demo-1 --source -
+# D3/F4: copy the trace files off the volume, summarise them, read the metrics endpoint
+mkdir -p traces && kubectl -n rahbar exec deploy/api -- tar c -C /data/traces . | tar x -C traces/
+python scripts/trace_metrics.py --source traces/ --last 24h --out eval/results/trace_summary.json
+curl -s localhost:18000/metrics | grep rahbar_trace
+# F3: candidate, gate, release, bad release, undo
+scripts/f3_release_demo.sh candidate-index && scripts/f3_release_demo.sh candidate-up && scripts/f3_release_demo.sh eval-candidate
+```
 
 ## Development
 

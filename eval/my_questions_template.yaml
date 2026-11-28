@@ -1,0 +1,31 @@
+# YOUR 3+ hand-written golden questions (Part B, M3). Write them from the REAL PDFs, not from the model.
+# 1. Find the exact (source, section) strings the indexer produces:
+#      make golden-helper ARGS='--grep "late examination"'
+# 2. Copy finished entries into eval/golden.yaml (same schema as g01..g27) and ALSO into eval/golden.jsonl
+#    (python eval/golden_set.py checks that the two agree). Use ids m3-01, m3-02, ...
+# 3. Hand-label 8 answers for judge agreement with M2's tool (do NOT look at the judge's labels first):
+#      python eval/judge.py export eval/results/<run>-eval.json --n 8
+#      python eval/judge.py agree  eval/results/<run>-eval.json eval/results/<run>-eval-labels.csv
+questions:
+  - id: m3-01
+    type: ordinary          # a question a student would really ask; answer is in one section
+    question: "<write it>"
+    relevant:
+      - {source: "<pdf file name exactly as in make golden-helper>", section: "<section string>"}
+    expect: "<short phrase the answer must contain, optional>"
+
+  - id: m3-02
+    type: paraphrase        # same fact as a real section, but worded with NONE of the document's keywords
+    question: "<write it>"
+    relevant:
+      - {source: "<pdf>", section: "<section>"}
+
+  - id: m3-03
+    type: abstain           # plausible, but the corpus does not cover it: the right behaviour is to abstain
+    question: "<write it>"
+
+  - id: m3-04
+    type: version           # asks about the current rules vs the superseded 2023 version (the corpus has both)
+    question: "<write it>"
+    relevant:
+      - {source: "<pdf>", section: "<section>"}
